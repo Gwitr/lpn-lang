@@ -1,0 +1,43 @@
+/* Creates an object 'x' and defines a methond called '>' in it. This method
+   will get called whenever the "greater then" operation is used on this object,
+   unless a different object also has the '>' method defined and happens to be
+   the first operand. */
+
+object "x" "G" . =    /* Create a new empty object G.x */
+
+/* Now, create a function that takes 2 arguments and push it to the stack. */
+2 {
+  2.0     /* Push 2.0 onto the stack */
+  ==      /* Checks if the 2 values on top of the stack (argument #2 and 2.0) are equal */
+  | _     /* Nuke 1st argument */
+  null {
+    "Hello, world!"
+  }  /* Code block that makes the function return "Hello, world!" if true */
+  null {
+    null
+  }  /* Code block that makes the function return null if true */
+  ?:
+}
+
+/* After that, store that function into the ">" attribute of G.x */
+
+">" "x" "G" . . =
+
+/* Now, whenever the '>' operand is used on this object, the custom function
+   will be called. */
+
+/* Testing time! */
+
+1 2 > "print" "io" . ** : _  /* Print the result of "1 2 >" */
+
+2 2 > "print" "io" . ** : _  /* Print the result of "2 2 >" */
+
+3 2 > "print" "io" . ** : _  /* Print the result of "3 2 >" */
+
+"x" "G" . ** 0 > "print" "io" . ** : _  /* Print the result of '"x" "G" . 0 >' (Is G.x > 0) */
+
+"x" "G" . ** 2 > "print" "io" . ** : _  /* Print the result of '"x" "G" . 2 >' (Is G.x > 2) */
+/* NOTE: as the '>' function of G.x returns null if the value 2 is the second operand, the code below
+   should never execute and this line should instead raise an exception. */
+
+"This should never execute!" "print" "io" . ** : _
