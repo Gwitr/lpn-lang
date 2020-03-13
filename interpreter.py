@@ -17,7 +17,10 @@ def dereference(val, vars_, line, char):
         #     raise RuntimeError("Top of stack isn't a reference")
         y = vars_
         for i in x[1:-1]:
-            y = y[i][1]
+            if y[i][0] == "object":
+                y = y[i][1]
+            else:
+                raise InterpreterError("Trying to dereference a non-object", line, char)
 
         return y[x[-1]]  # stack.append(y[x[-1]])
     except KeyError:
@@ -87,7 +90,7 @@ def do_call(x, stack, vars_, line, char):
             elif tmp[0] == "string":
                 args.append(tmp[1])
             else:
-                args.append(tmp)
+                raise InterpreterError("Don't know how to convert a '%s' type to a Python type" % (tmp[0]), line, char)
         res = x[2](*args[::-1])
         if res is None:
             stack.append(("null",))
@@ -133,13 +136,23 @@ def do_operand_call(op, x, y, stack, vars_, line, char):
         raise InterpreterError("Could not '%s' objects" % (op), line, char)
     return None, stack, vars_
 
-def interpreter(code, _stack=[], _vars={}):
+def join2(delim, str1, str2):
+    return str1 + delim + str2
+
+def join3(delim, str1, str2, str3):
+    return str1 + delim + str2 + delim + str3
+
+def interpreter(code, _stack=[], _vars={}, debug=False):
     mode_stack = ["interpret",]
     vars_ = {
         "G": ("object", {}),
         "io": ("object", {
             "print": ("func", ("decimal", 1), print),
             "input": ("func", ("decimal", 1), input),
+        }),
+        "string": ("object", {
+            "join2": ("func", ("decimal", 3), join2),
+            "join3": ("func", ("decimal", 4), join3),
         })
     }
     vars_.update(_vars)
@@ -147,11 +160,12 @@ def interpreter(code, _stack=[], _vars={}):
     stack += _stack[:]
     defd = ""
     n_of_args = None
+    parent = None
     def_layers = 0
-    # print("==== NEW INTERPRETER INSTANCE (start of file / function call / code block)")
-    # print("line char token          stack                                                                                                 Current scope variables")
+    if debug: print("==== NEW INTERPRETER INSTANCE (start of file / function call / code block)")
+    if debug: print("line char token          stack                                                                                                 Current scope variables")
     for line, char, i in tokenize(code):
-        # print("%4d %4d %15s %-100s %s" % (line, char, i, stack, vars_["G"][1]))
+        if debug: print("%4d %4d %15s %-100s %s" % (line, char, i, stack, vars_["G"][1]))
         if mode_stack[-1] == "interpret":
             if i == "":
                 continue
@@ -338,7 +352,11 @@ def interpreter(code, _stack=[], _vars={}):
             #         res1.append(x[1])
             #     stack.append(" ".join(reversed(res1)))
             elif i == "object":
-                stack.append(("object", {}))
+                stack.append(("object", {
+                    "_md": ("object", {
+                        "name": ("null",),
+                    })
+                }))
             elif i == "null":
                 stack.append(("null", ))
             elif i == ".":
@@ -368,6 +386,14 @@ def interpreter(code, _stack=[], _vars={}):
                 mode_stack.append("define")
                 defd=""
                 n_of_args=stack.pop()
+            elif i == ";":
+                what_name = stack.pop()
+                if what_name[0] != "string":
+                    raise InterpreterError("Name of function must be string", line, char)
+                what_obj  = stack[-1]
+                what = dereference(what_obj + (what_name[1],), vars_, line, char)
+                
+                stack, vars_ = do_call(what, stack, vars_, line, char)
             elif i == "/*":
                 mode_stack.append("comment")
             elif i == ":":
@@ -396,10 +422,12 @@ def interpreter(code, _stack=[], _vars={}):
         elif mode_stack[-1] == "comment":
             if i == "*/":
                 mode_stack.pop()
-    # print("====================================================================================================================")
+    if debug: print("====================================================================================================================")
     return stack, vars_
 
 # '''1 2 + "print "io . ** :'''
+
+debug = True
 
 if len(sys.argv) < 2:
     print("Type 'END' to end")
@@ -414,6 +442,6 @@ if len(sys.argv) < 2:
 elif len(sys.argv) == 2:
     with open(sys.argv[1]) as f:
         try:
-            interpreter(f.read())
+            interpreter(f.read(), debug=debug)
         except InterpreterError as e:
             print("Error!", str(e))
